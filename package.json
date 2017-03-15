@@ -10,7 +10,15 @@
     "type": "git",
     "url": "https://github.com/4louest/npm-tpe-pkg"
   },
-  "keywords": ["tpe", "ingenico", "websocket"],
+  "keywords": [
+    "tpe",
+    "ingenico",
+    "websocket"
+  ],
   "author": "Alouest <alex.saury@gmail.com>",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "angular": "^1.6.3",
+    "angular-websocket": "^2.0.1"
+  }
 }
