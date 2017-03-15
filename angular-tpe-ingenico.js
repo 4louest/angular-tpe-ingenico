@@ -162,11 +162,9 @@ angular.module('ngTpeIngenico', [])
                     defer.resolve(response);
                 }, function errorHandler(e) {
                     defer.reject(e);
-                    console.error(e);
                 });
             } catch (e) {
                 defer.reject(e);
-                console.error(e);
             }
 
             return defer.promise;
