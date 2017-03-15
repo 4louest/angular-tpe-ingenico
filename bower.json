@@ -1,0 +1,26 @@
+{
+  "name": "angular-tpe-ingenico",
+  "description": "package npm for Ingenico TPE managment with websocket",
+  "main": "index.js",
+  "authors": [
+    "Alouest <alex.saury@gmail.com>"
+  ],
+  "license": "ISC",
+  "keywords": [
+    "tpe",
+    "ingenico",
+    "websocket"
+  ],
+  "homepage": "https://github.com/4louest/npm-tpe-pkg",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "ng-websocket": "^0.2.1"
+  }
+}
