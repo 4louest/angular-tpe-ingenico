@@ -11,7 +11,7 @@
     "ingenico",
     "websocket"
   ],
-  "homepage": "https://github.com/4louest/npm-tpe-pkg",
+  "homepage": "https://github.com/4louest/angular-tpe-ingenico",
   "private": true,
   "ignore": [
     "**/.*",
