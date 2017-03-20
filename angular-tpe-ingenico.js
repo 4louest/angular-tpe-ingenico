@@ -1,17 +1,56 @@
 /*jslint node: true */
 "use strict";
 
-var angular = require('angular');
-
 angular.module('ngTpeIngenico', [])
     .constant('STATE', {
         'idle': 0,
         'payment_in_progress': 1,
         'print_int_progress': 2
     })
-    .constant('STATUS_IN_PAYMENT', 1)
-    .factory('$tpeIngenico', ['STATE', 'websocket', '$q', function PaymentFactory(STATE, websocket, $q) {
-        var self = this, currentState = STATE.idle;
+    .factory('$tpeIngenico', ['$websocket', '$q', '$timeout', function PaymentFactory($websocket, $q, $timeout) {
+        var self = this,
+            state = {
+                'idle': 1,
+                'in_payment': 2
+            },
+            currentState = state.idle,
+            payment_timeout = 120000, // in ms
+            timestamp_start,
+            timestamp_stop,
+            ws = $websocket('ws://localhost:8787'),
+            nIntervId,
+            locked = false,
+            wsDefer = $q.defer();
+
+        ws.onMessage(function (event) {
+            self.response = event.data;
+            try {
+                var paymentResponse = validateResponse(self.response);
+                if (false !== paymentResponse) {
+                    wsDefer.notify(self.response);
+                }
+            } catch (e) {
+                defer.reject(e);
+            }
+        });
+
+        ws.onError(function (event) {
+            locked = false;
+            console.log('connection Error');
+            nIntervId = setInterval(reconnect(), 5000);
+        });
+
+        ws.onClose(function (event) {
+            locked = false;
+            console.log('connection closed');
+            nIntervId = setInterval(reconnect, 5000);
+        });
+
+        ws.onOpen(function () {
+            console.log('connection open');
+            clearInterval(nIntervId);
+            locked = true;
+        });
 
         /**
         * Payment object is the object sent to the TPE
@@ -58,7 +97,6 @@ angular.module('ngTpeIngenico', [])
         */
         var validateResponse = function (jsonResponse) {
             var response;
-
             try {
                 response = JSON.parse(jsonResponse);
             } catch (e) {
@@ -70,11 +108,9 @@ angular.module('ngTpeIngenico', [])
             }
 
             // check response object structure
-            if (!response.hasOwnProperty('checkout_state')) {
-                throw new PaymentException('checkout_state is missing');
-            }
-            if (!response.hasOwnProperty('checkout_details')) {
-                throw new PaymentException('checkout_details is missing');
+            if (!response.hasOwnProperty('checkout_state') ||
+            !response.hasOwnProperty('checkout_details')) {
+                return false;
             }
 
             return response;
@@ -84,33 +120,34 @@ angular.module('ngTpeIngenico', [])
         * Check paymentObject validity
         * @return {Boolean}
         */
-        var validateQuery = function (paymentObject) {
-            if (typeof paymentObject !== 'object') {
+        var validateQuery = function (queryObject) {
+            if (typeof queryObject !== 'object') {
                 throw new PaymentException('paymentObject is not an object');
             }
 
+            if (!queryObject.hasOwnProperty('action')) {
+                throw new PaymentException('attribute action is missing');
+            }
+
+            if (!queryObject.hasOwnProperty('data')) {
+                throw new PaymentException('attribute data is missing');
+            }
+
+            var paymentObject = queryObject.data;
+
             // check mandatory fields
             if (!(paymentObject.hasOwnProperty('id')) ||
-                    !(paymentObject.hasOwnProperty('number')) ||
-                    !(paymentObject.hasOwnProperty('total_ttc')) ||
-                    !(paymentObject.hasOwnProperty('delivery')) ||
-                    !(paymentObject.hasOwnProperty('items'))) {
+                !(paymentObject.hasOwnProperty('number')) ||
+                !(paymentObject.hasOwnProperty('total_ttc')) ||
+                //!(paymentObject.hasOwnProperty('delivery')) ||
+                !(paymentObject.hasOwnProperty('items'))) {
                 throw new PaymentException('mandatory field is missing');
             }
 
-            // check fields types
-            if (typeof paymentObject.id !== 'number' ||
-                    typeof paymentObject.number !== 'string' ||
-                    typeof paymentObject.total_ttc !== 'number' ||
-                    typeof paymentObject.delivery !== 'string' ||
-                    !Array.isArray(paymentObject.items)) {
-                throw new PaymentException('bad type of field');
-            }
-
-            if (paymentObject.id) {
+            if (paymentObject.id <= 0) {
                 throw new PaymentException('paymentObject.id can\'t be null');
             }
-            if (paymentObject.total_ttc) {
+            if (paymentObject.total_ttc <= 0) {
                 throw new PaymentException('paymentObject.total_ttc can\'t be null');
             }
             if (paymentObject.items.length <= 0) {
@@ -120,27 +157,8 @@ angular.module('ngTpeIngenico', [])
             return true;
         };
 
-        /**
-        * Payment response observer
-        */
-        var paymentResponseObserver = function () {
-            var defer = $q.defer();
-
-            // waiting for response
-            if (self.currentState === STATE.idle) {
-                defer.reject('idle');
-            } else {
-                websocket.observeResponse().then(null, null, function (jsonResponse) {
-                    try {
-                        var paymentResponse = validateResponse(jsonResponse);
-                        defer.resolve(paymentResponse);
-                    } catch (e) {
-                        defer.reject(e);
-                    }
-                });
-            }
-
-            return defer.promise;
+        var observeResponse = function () {
+            return wsDefer.promise;
         };
 
         /**
@@ -153,28 +171,29 @@ angular.module('ngTpeIngenico', [])
             try {
                 validateQuery(payment);
                 self.paymentObject = payment;
-                self.currentState = STATE.payment_in_progress;
+                self.currentState = state.payment_in_progress;
 
-                websocket.send(JSON.stringify(payment));
-                defer.notify('request sent to websocket');
+                ws.send(JSON.stringify(payment));
 
-                paymentResponseObserver().then(function (response) {
+                // n second timeout to manage payment response
+                var promiseTimeout = $timeout(function () {
+                    defer.reject('response timeout');
+                }, payment_timeout);
+
+                observeResponse().then(null, null, function (response) {
                     defer.resolve(response);
-                }, function errorHandler(e) {
-                    defer.reject(e);
-                    console.error(e);
                 });
             } catch (e) {
                 defer.reject(e);
-                console.error(e);
             }
 
             return defer.promise;
         };
 
+
         return {
             currentState: currentState,
-            doRequest: paymentRequest,
-            observeResponse: null // @todo response observer
+            paymentRequest: paymentRequest
         };
-    }]);
+    }
+]);
