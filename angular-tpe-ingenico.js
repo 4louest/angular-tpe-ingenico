@@ -1,12 +1,8 @@
 /*jslint node: true */
 "use strict";
 
-angular.module('ngTpeIngenico', [])
-    .constant('STATE', {
-        'idle': 0,
-        'payment_in_progress': 1,
-        'print_int_progress': 2
-    })
+angular
+    .module('ngTpeIngenico', [])
     .factory('$tpeIngenico', ['$websocket', '$q', '$timeout', function PaymentFactory($websocket, $q, $timeout) {
         var self = this,
             state = {
@@ -15,11 +11,8 @@ angular.module('ngTpeIngenico', [])
             },
             currentState = state.idle,
             payment_timeout = 120000, // in ms
-            timestamp_start,
-            timestamp_stop,
             ws = $websocket('ws://localhost:8787'),
             nIntervId,
-            locked = false,
             wsDefer = $q.defer();
 
         ws.onMessage(function (event) {
@@ -30,18 +23,16 @@ angular.module('ngTpeIngenico', [])
                     wsDefer.notify(self.response);
                 }
             } catch (e) {
-                defer.reject(e);
+                wsDefer.reject(e);
             }
         });
 
         ws.onError(function (event) {
-            locked = false;
             console.log('connection Error');
             nIntervId = setInterval(reconnect(), 5000);
         });
 
         ws.onClose(function (event) {
-            locked = false;
             console.log('connection closed');
             nIntervId = setInterval(reconnect, 5000);
         });
@@ -49,7 +40,6 @@ angular.module('ngTpeIngenico', [])
         ws.onOpen(function () {
             console.log('connection open');
             clearInterval(nIntervId);
-            locked = true;
         });
 
         /**
@@ -109,7 +99,7 @@ angular.module('ngTpeIngenico', [])
 
             // check response object structure
             if (!response.hasOwnProperty('checkout_state') ||
-            !response.hasOwnProperty('checkout_details')) {
+                !response.hasOwnProperty('checkout_details')) {
                 return false;
             }
 
@@ -139,7 +129,6 @@ angular.module('ngTpeIngenico', [])
             if (!(paymentObject.hasOwnProperty('id')) ||
                 !(paymentObject.hasOwnProperty('number')) ||
                 !(paymentObject.hasOwnProperty('total_ttc')) ||
-                //!(paymentObject.hasOwnProperty('delivery')) ||
                 !(paymentObject.hasOwnProperty('items'))) {
                 throw new PaymentException('mandatory field is missing');
             }
@@ -177,23 +166,24 @@ angular.module('ngTpeIngenico', [])
 
                 // n second timeout to manage payment response
                 var promiseTimeout = $timeout(function () {
+                    self.currentState = state.idle;
                     defer.reject('response timeout');
                 }, payment_timeout);
 
                 observeResponse().then(null, null, function (response) {
+                    self.currentState = state.idle;
                     defer.resolve(response);
                 });
             } catch (e) {
+                self.currentState = state.idle;
                 defer.reject(e);
             }
 
             return defer.promise;
         };
 
-
         return {
             currentState: currentState,
             paymentRequest: paymentRequest
         };
-    }
-]);
+    }]);
