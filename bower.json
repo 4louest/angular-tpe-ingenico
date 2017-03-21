@@ -1,7 +1,8 @@
 {
   "name": "angular-tpe-ingenico",
+  "version": "1.0.1",
   "description": "package npm for Ingenico TPE managment with websocket",
-  "main": "index.js",
+  "main": "angular-tpe-ingenico.js",
   "authors": [
     "Alouest <alex.saury@gmail.com>"
   ],
