@@ -2,7 +2,7 @@
 "use strict";
 
 angular
-.module('ngTpeIngenico', [])
+.module('ngTpeIngenico', ['ngWebSocket'])
 .factory('$tpeIngenico', ['$websocket', '$q', '$timeout', function PaymentFactory($websocket, $q, $timeout) {
     var self = this,
     state = {

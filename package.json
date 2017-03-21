@@ -1,6 +1,6 @@
 {
   "name": "npm-tpe-pkg",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "package npm for Ingenico TPE managment with websocket",
   "main": "index.js",
   "scripts": {
